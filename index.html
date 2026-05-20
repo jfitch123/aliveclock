@@ -19,6 +19,11 @@
   #app{width:100%;height:100vh;min-height:520px;border-radius:12px;overflow:hidden;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg)}
   #app.hour-flash::after{content:'';position:absolute;inset:0;background:rgba(255,0,0,0.18);pointer-events:none;animation:hourFlash 0.8s ease-in-out}
   @keyframes hourFlash{0%{opacity:0}10%{opacity:0.9}35%{opacity:0.35}100%{opacity:0}}
+  #memorial-overlay{position:absolute;inset:0;pointer-events:none;z-index:28;background:#000;opacity:0;transition:opacity 1s ease}
+  #memorial-overlay.active{opacity:1}
+  #towers-beams{position:absolute;inset:0;pointer-events:none;z-index:29;display:flex;align-items:center;justify-content:center;gap:8vw;opacity:0;transition:opacity 1s ease}
+  #towers-beams.active{opacity:1}
+  .tower-beam{width:min(12vw,160px);height:60%;background:linear-gradient(180deg,rgba(60,160,255,0.18),rgba(10,40,120,0.08));box-shadow:0 0 90px 28px rgba(50,150,255,0.22),0 0 24px 12px rgba(60,170,255,0.18);border-radius:999px;}
   #sky-layer{position:absolute;inset:0;transition:background 4s ease;z-index:0}
   #weather-anim{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden}
   #fog-layer{position:absolute;inset:0;z-index:3;pointer-events:none;transition:background 4s}
@@ -92,6 +97,8 @@
   <div id="fog-layer"></div>
   <div id="sun-moon"></div>
   <div id="xmas-lights" aria-hidden="true"></div>
+  <div id="memorial-overlay" aria-hidden="true"></div>
+  <div id="towers-beams" aria-hidden="true"><div class="tower-beam"></div><div class="tower-beam"></div></div>
 
   <button id="loc-btn" type="button" class="control-btn" aria-label="Get location">
     <span aria-hidden="true">📍</span>
@@ -152,7 +159,8 @@
 const cfg = {use24h:false,units:'fahrenheit',showChr:true,showJew:true,showIsl:true,showHin:true,showSec:true};
 let wData=null,uLat=null,uLon=null,wInt=null,aInt=null,tTO=null,cleanAnim=null,locationWatcherId=null,firstRun=false;
 let locationStatus='';
-let bellAudioCtx=null,lastChimeMinute=null;
+let lastChimeMinute=null;
+let chimeTimeouts=[];
 
 function saveS(){try{localStorage.setItem('lcS',JSON.stringify(cfg))}catch(e){}renderToggles()}
 function saveLocation(){try{localStorage.setItem('lcLoc',JSON.stringify({lat:uLat,lon:uLon}))}catch(e){}}
@@ -164,81 +172,40 @@ function renderToggles(){
   const m={use24h:'t-24h',showChr:'t-chr',showJew:'t-jew',showIsl:'t-isl',showHin:'t-hin',showSec:'t-sec'};
   for(const[k,id]of Object.entries(m)){const el=document.getElementById(id);if(el)el.className='tog'+(cfg[k]?' on':'')}
 }
-function createBellContext(){
-  if(bellAudioCtx)return bellAudioCtx;
-  bellAudioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  if(bellAudioCtx.state==='suspended'){bellAudioCtx.resume().catch(()=>{});}
-  return bellAudioCtx;
+function clearChimeTimeouts(){
+  while(chimeTimeouts.length){clearTimeout(chimeTimeouts.pop())}
 }
-function bellFrequency(note){
-  const freqs={C4:261.63,D4:293.66,E4:329.63,G4:392.00,G3:196.00};
-  return freqs[note]||440;
+function playAudio(src){
+  const audio=new Audio(src);
+  audio.volume=0.8;
+  audio.play().catch(()=>{});
+  return audio;
 }
-function playBellTone(freq,duration,delay){
-  const ctx=createBellContext();
-  if(!ctx)return;
-  const osc=ctx.createOscillator();
-  const gain=ctx.createGain();
-  osc.type='sine';
-  osc.frequency.value=freq;
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  const start=ctx.currentTime+delay;
-  gain.gain.setValueAtTime(0,start);
-  gain.gain.linearRampToValueAtTime(0.28,start+0.02);
-  gain.gain.linearRampToValueAtTime(0,start+duration);
-  osc.start(start);
-  osc.stop(start+duration+0.05);
-}
-function playBellSequence(count){
-  const sequence=['E4','C4','D4','G3','G3','D4','E4','C4','E4','D4','C4','G3','G3','D4','E4','C4'];
-  const total=count===4?sequence.length:Math.floor(sequence.length*count/4);
-  let offset=0;
-  for(let i=0;i<total;i++){
-    playBellTone(bellFrequency(sequence[i]),0.8,offset);
-    offset+=0.9;
-    if((i+1)%4===0 && i+1<total){
-      offset+=1.0;
-    }
-  }
-  return offset;
-}
-function playHourChimes(hour){
-  const ctx=createBellContext();
-  if(!ctx)return;
-  let count;
-  if(cfg.use24h){
-    count=hour===0?24:hour;
-  } else {
-    count=hour%12||12;
-  }
-  const chord=['C4','E4','G4'];
-  let offset=0;
+function playHourlyCount(hour){
+  const count = cfg.use24h ? (hour===0?24:hour) : (hour%12||12);
+  clearChimeTimeouts();
   for(let i=0;i<count;i++){
-    const start=ctx.currentTime+offset;
-    chord.forEach(note=>{
-      const osc=ctx.createOscillator();
-      const gain=ctx.createGain();
-      osc.type='sine';
-      osc.frequency.value=bellFrequency(note);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      gain.gain.setValueAtTime(0,start);
-      gain.gain.linearRampToValueAtTime(0.28,start+0.02);
-      gain.gain.linearRampToValueAtTime(0,start+0.34);
-      osc.start(start);
-      osc.stop(start+0.36);
-    });
-    offset+=0.9;
+    chimeTimeouts.push(setTimeout(()=>playAudio('Chime.m4a'), i * 1100));
   }
 }
 function runQuarterChime(min,hour){
-  const quarter=min===0?4:min/15;
-  const delay=playBellSequence(quarter);
+  clearChimeTimeouts();
+  if(min===15){
+    playAudio('15min.m4a');
+    return;
+  }
+  if(min===30){
+    playAudio('30min.m4a');
+    return;
+  }
+  if(min===45){
+    playAudio('45min.m4a');
+    return;
+  }
   if(min===0){
+    playAudio('Hour.m4a');
     flashHour();
-    const restBeat = 0.9;
-    setTimeout(()=>playHourChimes(hour%12||12),(delay+restBeat)*1000+120);
+    chimeTimeouts.push(setTimeout(()=>playHourlyCount(hour), 1400));
   }
 }
 function flashHour(){
@@ -254,8 +221,6 @@ function showControls(){
   const app=document.getElementById('app');
   app.classList.add('controls-visible');
   if(controlsTimer)clearTimeout(controlsTimer);
-  // Ensure audio context is created/resumed on first visible user interaction
-  try{createBellContext();}catch(e){}
   if(document.getElementById('settings-panel').classList.contains('open'))return;
   controlsTimer=setTimeout(()=>{document.getElementById('app').classList.remove('controls-visible')},3000);
 }
@@ -455,8 +420,8 @@ function getPalette(code,temp,nowMs,srMs,ssMs){
   if(isSunrise)return{sky:'#e07830',tx:'#fff3e0'};
   if(isSunset)return{sky:'#b03525',tx:'#ffe0cc'};
   if(code===0||code===1){
-    if(temp>35)return{sky:'#d05020',tx:'#fff0e0'};
-    if(temp>28)return{sky:'#c07838',tx:'#fff4e0'};
+    if(temp>=35)return{sky:'#d05020',tx:'#fff0e0'};
+    if(temp>=28)return{sky:'#c07838',tx:'#fff4e0'};
     if(temp<=10)return{sky:'#3a6fc2',tx:'#e5f2ff'};
     return{sky:'#6ab8e0',tx:'#0d2040'};
   }
@@ -642,6 +607,60 @@ function drawXmasLights(){
   el.appendChild(wire);
 }
 
+function isMemorialDay(now){
+  const year=now.getFullYear();
+  const may31=new Date(year,4,31);
+  const offset=(may31.getDay()+6)%7;
+  const lastMonday=31-offset;
+  return now.getMonth()===4 && now.getDate()===lastMonday;
+}
+
+function updateMemorialOverlay(now){
+  const overlay=document.getElementById('memorial-overlay');
+  const beams=document.getElementById('towers-beams');
+  if(!overlay||!beams)return;
+
+  const is911=now.getMonth()===8 && now.getDate()===11;
+  const isMemDay=isMemorialDay(now);
+  const isThreePM=isMemDay && now.getHours()===15 && now.getMinutes()===0;
+
+  if(is911){
+    overlay.classList.add('active');
+    beams.classList.add('active');
+    return;
+  }
+
+  beams.classList.remove('active');
+  if(isThreePM){
+    overlay.classList.add('active');
+  } else {
+    overlay.classList.remove('active');
+  }
+}
+
+function updateClock(){
+  const now=new Date();
+  const h=now.getHours(),min=now.getMinutes(),sec=now.getSeconds();
+  let dH,ap;
+  if(cfg.use24h){dH=String(h).padStart(2,'0');ap=''}
+  else{const h12=h%12||12;dH=String(h12).padStart(2,'0');ap=h<12?'AM':'PM'}
+  document.getElementById('time-display').textContent=`${dH}:${String(min).padStart(2,'0')}`;
+  document.getElementById('seconds-display').textContent=String(sec).padStart(2,'0');
+  document.getElementById('ampm-display').textContent=ap;
+  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('date-display').textContent=`${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+  updateMemorialOverlay(now);
+  if(sec===0){
+    checkHolidays();
+    if(wData)updateSky(wData.current.weathercode,wData.current.temperature_2m,wData.daily.sunrise[0],wData.daily.sunset[0]);
+    if(min%15===0&&min!==lastChimeMinute){
+      lastChimeMinute=min;
+      runQuarterChime(min,h);
+    }
+  }
+}
+
 function drawMenorah(lit){
   const wrap=document.createElement('div');wrap.className='menorah-wrap';
   const sz=Math.min(200,document.getElementById('app').offsetWidth*0.32);
@@ -667,28 +686,6 @@ function drawMenorah(lit){
   });
   wrap.appendChild(svg);
   document.getElementById('content').appendChild(wrap);
-}
-
-function updateClock(){
-  const now=new Date();
-  const h=now.getHours(),min=now.getMinutes(),sec=now.getSeconds();
-  let dH,ap;
-  if(cfg.use24h){dH=String(h).padStart(2,'0');ap=''}
-  else{const h12=h%12||12;dH=String(h12).padStart(2,'0');ap=h<12?'AM':'PM'}
-  document.getElementById('time-display').textContent=`${dH}:${String(min).padStart(2,'0')}`;
-  document.getElementById('seconds-display').textContent=String(sec).padStart(2,'0');
-  document.getElementById('ampm-display').textContent=ap;
-  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
-  document.getElementById('date-display').textContent=`${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
-  if(sec===0){
-    checkHolidays();
-    if(wData)updateSky(wData.current.weathercode,wData.current.temperature_2m,wData.daily.sunrise[0],wData.daily.sunset[0]);
-    if(min%15===0&&min!==lastChimeMinute){
-      lastChimeMinute=min;
-      runQuarterChime(min,h);
-    }
-  }
 }
 
 function fallbackSky(){
