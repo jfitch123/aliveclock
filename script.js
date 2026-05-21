@@ -190,7 +190,9 @@ function renderCountdowns(){
         </div>
       </div>
       <div class="countdown-meta"><span>${targetText}</span></div>
-      <div class="countdown-actions"><button type="button" onclick="deleteCountdown('${countdown.id}')">Delete</button></div>
+      <div class="countdown-actions"><button type="button" onclick="deleteCountdown('${countdown.id}')">Delete</button>
+        <label class="count-showhome"><input type="checkbox" onchange="toggleShowOnHome('${countdown.id}', this.checked)" ${countdown.showOnHome!==false? 'checked':''}/> Show on main</label>
+      </div>
     `;
 
     container.appendChild(card);
@@ -211,13 +213,15 @@ function renderHomeCountdowns(){
   const container=document.getElementById('home-countdowns-list');
   if(!container) return;
   container.innerHTML='';
-  if(!countdowns.length){
+  // filter for those marked to show on home
+  const visible = countdowns.filter(c=> c.showOnHome !== false);
+  if(!visible.length){
     container.innerHTML='';
     return;
   }
   // show next up to 2 countdowns
   const now=new Date();
-  const upcoming = countdowns.slice().sort((a,b)=> new Date(a.targetTime||a.targetDate)-new Date(b.targetTime||b.targetDate));
+  const upcoming = visible.slice().sort((a,b)=> new Date(a.targetTime||a.targetDate)-new Date(b.targetTime||b.targetDate));
   const take = upcoming.slice(0,2);
   for(const cd of take){
     const target=new Date(cd.targetTime||cd.targetDate);
@@ -234,9 +238,17 @@ function renderHomeCountdowns(){
         <div class="countdown-unit"><div class="countdown-value cd-hours">${String(hours).padStart(2,'0')}</div><div class="countdown-label">hrs</div></div>
         <div class="countdown-unit"><div class="countdown-value cd-mins">${String(minutes).padStart(2,'0')}</div><div class="countdown-label">min</div></div>
         <div class="countdown-unit"><div class="countdown-value cd-secs">${String(seconds).padStart(2,'0')}</div><div class="countdown-label">sec</div></div>
-      </div>`;
+      </div>
+      <div class="home-countdown-name">${cd.name}</div>`;
     container.appendChild(card);
   }
+}
+
+function updateReshowVisibility(){
+  const reshowBtn=document.getElementById('reshow-home-countdowns-btn');
+  const homeSection=document.getElementById('home-countdowns');
+  if(!reshowBtn||!homeSection) return;
+  reshowBtn.style.display = homeSection.classList.contains('home-countdowns-hidden') ? 'inline-block' : 'none';
 }
 
 function updateCountdownDisplays(){
@@ -266,8 +278,33 @@ function updateCountdownDisplays(){
     set('cd-secs',seconds);
   });
 }
-function addCountdown(e){e.preventDefault();const name=document.getElementById('countdown-name').value.trim();const date=document.getElementById('countdown-date').value;const time=document.getElementById('countdown-time').value; if(!name||!date){return;}const [year,month,day]=date.split('-').map(Number);const [hour,minute]=time?time.split(':').map(Number):[0,0];const target=new Date(year,month-1,day,hour||0,minute||0,0,0);const now=new Date();if(target.getTime()<now.getTime()){return;}countdowns.push({id:Date.now().toString(),name,targetTime:target.toISOString(),createdAt:now.toISOString()});saveCountdownData();renderCountdowns();document.getElementById('countdowns-form').reset();}
+function addCountdown(e){
+  e.preventDefault();
+  const name=document.getElementById('countdown-name').value.trim();
+  const date=document.getElementById('countdown-date').value;
+  const time=document.getElementById('countdown-time').value;
+  const showOnHomeEl=document.getElementById('countdown-showhome');
+  const showOnHome=!!(showOnHomeEl && showOnHomeEl.checked);
+  if(!name||!date){return}
+  const [year,month,day]=date.split('-').map(Number);
+  const [hour,minute]=time?time.split(':').map(Number):[0,0];
+  const target=new Date(year,month-1,day,hour||0,minute||0,0,0);
+  const now=new Date();
+  if(target.getTime()<now.getTime()){return}
+  countdowns.push({id:Date.now().toString(),name,targetTime:target.toISOString(),createdAt:now.toISOString(),showOnHome:showOnHome});
+  saveCountdownData();
+  renderCountdowns();
+  document.getElementById('countdowns-form').reset();
+}
 function deleteCountdown(id){countdowns=countdowns.filter(c=>c.id!==id);saveCountdownData();renderCountdowns();}
+function toggleShowOnHome(id, explicit){
+  const i = countdowns.findIndex(c=>c.id===id);
+  if(i<0) return;
+  if(typeof explicit === 'boolean') countdowns[i].showOnHome = explicit;
+  else countdowns[i].showOnHome = !countdowns[i].showOnHome;
+  try{localStorage.setItem(COUNTDOWN_STORAGE_KEY,JSON.stringify(countdowns))}catch(e){}
+  try{renderHomeCountdowns();renderCountdowns();updateReshowVisibility();}catch(e){}
+}
 function openCountdownsPanel(){
   const panel=document.getElementById('countdowns-panel');
   if(!panel) return;
@@ -333,15 +370,23 @@ function initControls(){
   const homeSection=document.getElementById('home-countdowns');
   // load hidden state
   try{const hidden=localStorage.getItem('lcHomeCountdownsHidden');if(hidden==='1'&&homeSection){homeSection.classList.add('home-countdowns-hidden'); if(toggleHome) toggleHome.textContent='Show'}}catch(e){}
-  if(toggleHome) toggleHome.addEventListener('click',e=>{e.stopPropagation();if(!homeSection) return; const hidden=homeSection.classList.toggle('home-countdowns-hidden'); toggleHome.textContent=hidden?'Show':'Hide'; try{localStorage.setItem('lcHomeCountdownsHidden', hidden? '1':'0')}catch(e){} });
-  // external reshow button (useful when the home section itself is hidden)
   const reshowBtn = document.getElementById('reshow-home-countdowns-btn');
+  const updateReshowVisibility = () => {
+    if(!reshowBtn||!homeSection) return;
+    reshowBtn.style.display = homeSection.classList.contains('home-countdowns-hidden') ? 'inline-block' : 'none';
+  };
+  // initial visibility
+  updateReshowVisibility();
+
+  if(toggleHome) toggleHome.addEventListener('click',e=>{e.stopPropagation();if(!homeSection) return; const hidden=homeSection.classList.toggle('home-countdowns-hidden'); toggleHome.textContent=hidden?'Show':'Hide'; try{localStorage.setItem('lcHomeCountdownsHidden', hidden? '1':'0')}catch(e){} updateReshowVisibility(); });
+  // external reshow button (useful when the home section itself is hidden)
   if(reshowBtn) reshowBtn.addEventListener('click', e => {
     e.stopPropagation();
     if(!homeSection) return;
     const hidden = homeSection.classList.toggle('home-countdowns-hidden');
     if(toggleHome) toggleHome.textContent = hidden ? 'Show' : 'Hide';
     try{ localStorage.setItem('lcHomeCountdownsHidden', hidden ? '1' : '0'); }catch(e){}
+    updateReshowVisibility();
     showControls();
   });
   if(addHome) addHome.addEventListener('click',e=>{e.stopPropagation();openCountdownsPanel()});

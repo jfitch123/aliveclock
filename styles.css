@@ -251,9 +251,12 @@ select {
 .control-small{ padding:6px 8px; border-radius:8px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.06); color:#fff; cursor:pointer }
 .control-small:hover{ background:rgba(255,255,255,0.1) }
 #home-countdowns-list{ width:100%; max-width:720px; margin-top:10px; display:flex; gap:10px; justify-content:center; align-items:center }
-.home-countdown-card{ background: rgba(255,255,255,0.06); padding:8px 10px; border-radius:10px; display:flex; gap:10px; align-items:center; min-width:0 }
-.home-countdown-card .countdown-value{ font-size: clamp(18px, 6vw, 40px); padding:6px 8px }
-.home-countdown-card .countdown-label{ font-size:12px; color:rgba(255,255,255,0.9); margin-top:6px }
+.home-countdown-card{ background: rgba(255,255,255,0.06); padding:8px 10px; border-radius:10px; display:flex; flex-direction:column; gap:8px; align-items:center; min-width:0; width: 160px }
+.home-countdown-card .countdown-timer{ display:flex; gap:8px; align-items:flex-end; justify-content:center; width:100% }
+.home-countdown-card .countdown-unit{ flex: 1 1 auto; min-width:0; text-align:center }
+.home-countdown-card .countdown-value{ font-size: clamp(14px, 5vw, 28px); padding:6px 8px; background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,245,240,0.96)); color: #07111f; display:inline-block; border-radius:6px }
+.home-countdown-card .countdown-label{ font-size:11px; color:rgba(255,255,255,0.9); margin-top:6px }
+.home-countdown-card .home-countdown-name{ font-size:13px; color:rgba(255,255,255,0.95); text-align:center; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 
 /* hidden state */
 .home-countdowns-hidden{ display:none }
