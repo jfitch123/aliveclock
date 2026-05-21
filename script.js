@@ -13,6 +13,8 @@ const audioFiles={
 };
 const COUNTDOWN_STORAGE_KEY='lcCountdowns';
 let countdowns=[];
+let countdownsInterval=null;
+let homeCountdownsInterval=null;
 
 function createAudioElement(name){
   const audio=document.createElement('audio');
@@ -93,11 +95,141 @@ function saveCountdownData(){try{localStorage.setItem(COUNTDOWN_STORAGE_KEY,JSON
 function startOfDay(dt){return new Date(dt.getFullYear(),dt.getMonth(),dt.getDate())}
 function formatCountdown(ms){const totalSeconds=Math.max(0,Math.floor(ms/1000));const days=Math.floor(totalSeconds/86400);const hours=Math.floor((totalSeconds%86400)/3600);const minutes=Math.floor((totalSeconds%3600)/60);const seconds=totalSeconds%60;const parts=[];if(days)parts.push(`${days} day${days===1?'':'s'}`);if(hours)parts.push(`${hours} hr${hours===1?'':'s'}`);if(minutes)parts.push(`${minutes} min${minutes===1?'':'s'}`);if(seconds||!parts.length)parts.push(`${seconds} sec${seconds===1?'':'s'}`);return parts.join(' ')}
 function formatTarget(date){const opts={year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'};return `Target: ${date.toLocaleString([],opts)}`}
-function renderCountdowns(){const container=document.getElementById('countdowns-list');if(!container)return;container.innerHTML='';if(countdowns.length===0){container.innerHTML='<p class="countdown-empty">No countdowns saved yet. Add one to begin.</p>';return;}const now=new Date();for(const countdown of countdowns){const target=new Date(countdown.targetTime||countdown.targetDate);const isPast=target.getTime()<now.getTime();const remainingMs=Math.max(0,target.getTime()-now.getTime());const countdownText=isPast?'<strong>Completed</strong>':formatCountdown(remainingMs);const targetText=formatTarget(target);const card=document.createElement('div');card.className='countdown-card';card.innerHTML=`<h3>${countdown.name}</h3><div class="countdown-meta"><span>${targetText}</span><span>${countdownText}</span></div><div class="countdown-actions"><button type="button" onclick="deleteCountdown('${countdown.id}')">Delete</button></div>`;container.appendChild(card);} }
+function renderCountdowns(){
+  const container=document.getElementById('countdowns-list');
+  if(!container) return;
+  container.innerHTML='';
+  if(countdowns.length===0){
+    container.innerHTML='<p class="countdown-empty">No countdowns saved yet. Add one to begin.</p>';
+    return;
+  }
+  const now=new Date();
+  for(const countdown of countdowns){
+    const target=new Date(countdown.targetTime||countdown.targetDate);
+    const isPast=target.getTime()<now.getTime();
+    const remainingMs=Math.max(0,target.getTime()-now.getTime());
+    const targetText=formatTarget(target);
+
+    const card=document.createElement('div');
+    card.className='countdown-card';
+
+    // large timer layout
+    card.innerHTML=`
+      <h3>${countdown.name}</h3>
+      <div class="countdown-timer" data-target="${target.toISOString()}">
+        <div class="countdown-unit">
+          <div class="countdown-value cd-days">00</div>
+          <div class="countdown-label">days</div>
+        </div>
+        <div class="countdown-unit">
+          <div class="countdown-value cd-hours">00</div>
+          <div class="countdown-label">hours</div>
+        </div>
+        <div class="countdown-unit">
+          <div class="countdown-value cd-mins">00</div>
+          <div class="countdown-label">minutes</div>
+        </div>
+        <div class="countdown-unit">
+          <div class="countdown-value cd-secs">00</div>
+          <div class="countdown-label">seconds</div>
+        </div>
+      </div>
+      <div class="countdown-meta"><span>${targetText}</span></div>
+      <div class="countdown-actions"><button type="button" onclick="deleteCountdown('${countdown.id}')">Delete</button></div>
+    `;
+
+    container.appendChild(card);
+  }
+  // populate initial values
+  updateCountdownDisplays();
+}
+
+// ensure home list updates whenever main list changes
+const originalSaveCountdownData = saveCountdownData;
+function saveCountdownData(){
+  try{localStorage.setItem(COUNTDOWN_STORAGE_KEY,JSON.stringify(countdowns))}catch(e){}
+  // update home display and full render
+  try{renderHomeCountdowns();renderCountdowns();}catch(e){}
+}
+
+function renderHomeCountdowns(){
+  const container=document.getElementById('home-countdowns-list');
+  if(!container) return;
+  container.innerHTML='';
+  if(!countdowns.length){
+    container.innerHTML='';
+    return;
+  }
+  // show next up to 2 countdowns
+  const now=new Date();
+  const upcoming = countdowns.slice().sort((a,b)=> new Date(a.targetTime||a.targetDate)-new Date(b.targetTime||b.targetDate));
+  const take = upcoming.slice(0,2);
+  for(const cd of take){
+    const target=new Date(cd.targetTime||cd.targetDate);
+    const diff=Math.max(0,target.getTime()-now.getTime());
+    const totalSeconds=Math.floor(diff/1000);
+    const days=Math.floor(totalSeconds/86400);
+    const hours=Math.floor((totalSeconds%86400)/3600);
+    const minutes=Math.floor((totalSeconds%3600)/60);
+    const seconds=totalSeconds%60;
+    const card=document.createElement('div');
+    card.className='home-countdown-card';
+    card.innerHTML=`<div class="countdown-timer" data-target="${target.toISOString()}">
+        <div class="countdown-unit"><div class="countdown-value cd-days">${String(days).padStart(2,'0')}</div><div class="countdown-label">days</div></div>
+        <div class="countdown-unit"><div class="countdown-value cd-hours">${String(hours).padStart(2,'0')}</div><div class="countdown-label">hrs</div></div>
+        <div class="countdown-unit"><div class="countdown-value cd-mins">${String(minutes).padStart(2,'0')}</div><div class="countdown-label">min</div></div>
+        <div class="countdown-unit"><div class="countdown-value cd-secs">${String(seconds).padStart(2,'0')}</div><div class="countdown-label">sec</div></div>
+      </div>`;
+    container.appendChild(card);
+  }
+}
+
+function updateCountdownDisplays(){
+  const timers=document.querySelectorAll('.countdown-timer');
+  const now=new Date();
+  timers.forEach(t=>{
+    const iso=t.getAttribute('data-target');
+    if(!iso)return;
+    const target=new Date(iso);
+    const diff=Math.max(0,target.getTime()-now.getTime());
+    if(diff<=0){
+      t.querySelectorAll('.countdown-value').forEach(v=>v.textContent='00');
+      const parent=t.closest('.countdown-card');
+      const meta=parent.querySelector('.countdown-meta');
+      if(meta)meta.innerHTML='<span>'+formatTarget(target)+'</span><span><strong>Completed</strong></span>';
+      return;
+    }
+    const totalSeconds=Math.floor(diff/1000);
+    const days=Math.floor(totalSeconds/86400);
+    const hours=Math.floor((totalSeconds%86400)/3600);
+    const minutes=Math.floor((totalSeconds%3600)/60);
+    const seconds=totalSeconds%60;
+    const set=(cls,val)=>{const el=t.querySelector('.'+cls);if(el)el.textContent=String(val).padStart(2,'0')};
+    set('cd-days',days);
+    set('cd-hours',hours);
+    set('cd-mins',minutes);
+    set('cd-secs',seconds);
+  });
+}
 function addCountdown(e){e.preventDefault();const name=document.getElementById('countdown-name').value.trim();const date=document.getElementById('countdown-date').value;const time=document.getElementById('countdown-time').value; if(!name||!date){return;}const [year,month,day]=date.split('-').map(Number);const [hour,minute]=time?time.split(':').map(Number):[0,0];const target=new Date(year,month-1,day,hour||0,minute||0,0,0);const now=new Date();if(target.getTime()<now.getTime()){return;}countdowns.push({id:Date.now().toString(),name,targetTime:target.toISOString(),createdAt:now.toISOString()});saveCountdownData();renderCountdowns();document.getElementById('countdowns-form').reset();}
 function deleteCountdown(id){countdowns=countdowns.filter(c=>c.id!==id);saveCountdownData();renderCountdowns();}
-function openCountdownsPanel(){const panel=document.getElementById('countdowns-panel');if(!panel)return;panel.classList.add('open');renderCountdowns();showControls();}
-function closeCountdownsPanel(){const panel=document.getElementById('countdowns-panel');if(!panel)return;panel.classList.remove('open');hideControlsAfterDelay();}
+function openCountdownsPanel(){
+  const panel=document.getElementById('countdowns-panel');
+  if(!panel) return;
+  panel.classList.add('open');
+  renderCountdowns();
+  // start live updates
+  if(!countdownsInterval) countdownsInterval=setInterval(updateCountdownDisplays,1000);
+  showControls();
+}
+function closeCountdownsPanel(){
+  const panel=document.getElementById('countdowns-panel');
+  if(!panel) return;
+  panel.classList.remove('open');
+  // stop live updates
+  if(countdownsInterval){clearInterval(countdownsInterval);countdownsInterval=null}
+  hideControlsAfterDelay();
+}
 
 let controlsTimer=null;
 function showControls(){
@@ -141,6 +273,13 @@ function initControls(){
   if(zipInput)zipInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();geocodeZipCode(zipInput.value)}});
   const countdownsForm=document.getElementById('countdowns-form');
   if(countdownsForm)countdownsForm.addEventListener('submit',addCountdown);
+  const toggleHome=document.getElementById('toggle-home-countdowns');
+  const addHome=document.getElementById('add-home-countdown');
+  const homeSection=document.getElementById('home-countdowns');
+  // load hidden state
+  try{const hidden=localStorage.getItem('lcHomeCountdownsHidden');if(hidden==='1'&&homeSection){homeSection.classList.add('home-countdowns-hidden'); if(toggleHome) toggleHome.textContent='Show'}}catch(e){}
+  if(toggleHome) toggleHome.addEventListener('click',e=>{e.stopPropagation();if(!homeSection) return; const hidden=homeSection.classList.toggle('home-countdowns-hidden'); toggleHome.textContent=hidden?'Show':'Hide'; try{localStorage.setItem('lcHomeCountdownsHidden', hidden? '1':'0')}catch(e){} });
+  if(addHome) addHome.addEventListener('click',e=>{e.stopPropagation();openCountdownsPanel()});
   showControls();
 }
 
@@ -586,11 +725,13 @@ function fallbackSky(){
 
 const initialSetup=loadS();
 loadCountdowns();
+renderHomeCountdowns();
 initControls();
 fallbackSky();
 updateClock();
 checkHolidays();
 autoRequestLocation();
+if(!homeCountdownsInterval) homeCountdownsInterval=setInterval(updateCountdownDisplays,1000);
 if(initialSetup){
   const heading=document.getElementById('settings-heading');
   const intro=document.getElementById('setup-instructions');
