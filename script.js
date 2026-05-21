@@ -3,8 +3,6 @@ let wData=null,uLat=null,uLon=null,wInt=null,aInt=null,tTO=null,cleanAnim=null,l
 let locationStatus='';
 let lastChimeMinute=null;
 let chimeTimeouts=[];
-const CHAIN_STORAGE_KEY='lcChains';
-let chains=[];
 let audioUnlocked=false;
 const audioFiles={
   '15min':'./15min.m4a',
@@ -13,7 +11,21 @@ const audioFiles={
   'Hour':'./Hour.m4a',
   'Chime':'./Chime.m4a'
 };
-const audioCache={};
+const COUNTDOWN_STORAGE_KEY='lcCountdowns';
+let countdowns=[];
+
+function createAudioElement(name){
+  const audio=document.createElement('audio');
+  audio.src=audioFiles[name]||name;
+  audio.preload='auto';
+  audio.volume=0.25;
+  audio.playsInline=true;
+  audio.style.display='none';
+  audio.addEventListener('ended',()=>audio.remove());
+  audio.addEventListener('pause',()=>{if(!audio.ended)audio.remove();});
+  document.body.appendChild(audio);
+  return audio;
+}
 
 function saveS(){try{localStorage.setItem('lcS',JSON.stringify(cfg))}catch(e){}renderToggles()}
 function saveLocation(){try{localStorage.setItem('lcLoc',JSON.stringify({lat:uLat,lon:uLon}))}catch(e){}}
@@ -29,30 +41,16 @@ function renderToggles(){
 function clearChimeTimeouts(){
   while(chimeTimeouts.length){clearTimeout(chimeTimeouts.pop())}
 }
-function initAudioCache(){
-  if(audioUnlocked) return;
-  Object.entries(audioFiles).forEach(([key,src])=>{
-    const audio=new Audio(src);
-    audio.preload='auto';
-    audio.volume=0.8;
-    audioCache[key]=audio;
-  });
-}
 function unlockAudio(){
   if(audioUnlocked) return;
   audioUnlocked=true;
-  initAudioCache();
-  const unlockClip=audioCache['15min'];
-  if(unlockClip){
-    unlockClip.muted=true;
-    unlockClip.play().then(()=>{unlockClip.pause();unlockClip.muted=false}).catch(()=>{});
-  }
+  const unlockClip=createAudioElement('15min');
+  unlockClip.muted=true;
+  unlockClip.play().then(()=>{unlockClip.pause();unlockClip.muted=false;unlockClip.remove()}).catch(()=>{unlockClip.remove()});
 }
 function playAudio(name){
-  const cached=audioCache[name];
-  const audio=cached ? cached.cloneNode(true) : new Audio(audioFiles[name]||name);
-  audio.volume=0.8;
-  audio.play().catch(()=>{});
+  const audio=createAudioElement(name);
+  audio.play().catch(()=>{audio.remove()});
   return audio;
 }
 function playHourlyCount(hour){
@@ -90,15 +88,16 @@ function flashHour(){
 }
 function toggleS(k){cfg[k]=!cfg[k];saveS();checkHolidays()}
 
-function loadChains(){try{const stored=JSON.parse(localStorage.getItem(CHAIN_STORAGE_KEY)||'[]');chains=Array.isArray(stored)?stored:[]}catch(e){chains=[]}}
-function saveChainData(){try{localStorage.setItem(CHAIN_STORAGE_KEY,JSON.stringify(chains))}catch(e){}}
+function loadCountdowns(){try{const stored=JSON.parse(localStorage.getItem(COUNTDOWN_STORAGE_KEY)||'[]');countdowns=Array.isArray(stored)?stored:[]}catch(e){countdowns=[]}}
+function saveCountdownData(){try{localStorage.setItem(COUNTDOWN_STORAGE_KEY,JSON.stringify(countdowns))}catch(e){}}
 function startOfDay(dt){return new Date(dt.getFullYear(),dt.getMonth(),dt.getDate())}
-function renderChains(){const container=document.getElementById('chains-list');if(!container)return;container.innerHTML='';if(chains.length===0){container.innerHTML='<p class="chain-empty">No chains saved yet. Add one to begin your countdown.</p>';return;}const today=startOfDay(new Date());for(const chain of chains){const target=new Date(chain.targetDate);const remaining=Math.max(0,Math.ceil((target.getTime()-today.getTime())/86400000));const lastRipped=chain.lastRippedDate?startOfDay(new Date(chain.lastRippedDate)).getTime():null;const ripToday=remaining>0 && lastRipped!==today.getTime();const links=Math.min(10,Math.max(1,chain.totalLinks||1));const linkRow='⛓️'.repeat(links);const card=document.createElement('div');card.className='chain-card';card.innerHTML=`<h3>${chain.name}</h3><div class="chain-meta"><span>Target: ${chain.targetDate}</span><span>${remaining} day${remaining===1?'':'s'} left</span><span>Ripped: ${chain.linksRipped}</span></div><div class="chain-progress">${linkRow}</div><div class="chain-actions">${ripToday?`<button type="button" onclick="ripChain('${chain.id}')">Rip today's link</button>`:'<button type="button" disabled>Rip today unavailable</button>'}<button type="button" onclick="deleteChain('${chain.id}')">Delete</button></div>`;container.appendChild(card);} }
-function addChain(e){e.preventDefault();const name=document.getElementById('chain-name').value.trim();const date=document.getElementById('chain-date').value; if(!name||!date){return;}const target=new Date(date);const today=startOfDay(new Date());if(target<today){return;}const totalLinks=Math.max(1,Math.ceil((target.getTime()-today.getTime())/86400000));chains.push({id:Date.now().toString(),name,targetDate:date,createdAt:today.toISOString(),linksRipped:0,lastRippedDate:'',totalLinks});saveChainData();renderChains();document.getElementById('chains-form').reset();}
-function ripChain(id){const chain=chains.find(c=>c.id===id);if(!chain)return;const today=startOfDay(new Date());const lastRipped=chain.lastRippedDate?startOfDay(new Date(chain.lastRippedDate)).getTime():null;if(lastRipped===today.getTime())return;chain.linksRipped=(chain.linksRipped||0)+1;chain.lastRippedDate=today.toISOString();saveChainData();renderChains();}
-function deleteChain(id){chains=chains.filter(c=>c.id!==id);saveChainData();renderChains();}
-function openChainsPanel(){const panel=document.getElementById('chains-panel');if(!panel)return;panel.classList.add('open');renderChains();showControls();}
-function closeChainsPanel(){const panel=document.getElementById('chains-panel');if(!panel)return;panel.classList.remove('open');hideControlsAfterDelay();}
+function formatCountdown(ms){const totalSeconds=Math.max(0,Math.floor(ms/1000));const days=Math.floor(totalSeconds/86400);const hours=Math.floor((totalSeconds%86400)/3600);const minutes=Math.floor((totalSeconds%3600)/60);const seconds=totalSeconds%60;const parts=[];if(days)parts.push(`${days} day${days===1?'':'s'}`);if(hours)parts.push(`${hours} hr${hours===1?'':'s'}`);if(minutes)parts.push(`${minutes} min${minutes===1?'':'s'}`);if(seconds||!parts.length)parts.push(`${seconds} sec${seconds===1?'':'s'}`);return parts.join(' ')}
+function formatTarget(date){const opts={year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'};return `Target: ${date.toLocaleString([],opts)}`}
+function renderCountdowns(){const container=document.getElementById('countdowns-list');if(!container)return;container.innerHTML='';if(countdowns.length===0){container.innerHTML='<p class="countdown-empty">No countdowns saved yet. Add one to begin.</p>';return;}const now=new Date();for(const countdown of countdowns){const target=new Date(countdown.targetTime||countdown.targetDate);const isPast=target.getTime()<now.getTime();const remainingMs=Math.max(0,target.getTime()-now.getTime());const countdownText=isPast?'<strong>Completed</strong>':formatCountdown(remainingMs);const targetText=formatTarget(target);const card=document.createElement('div');card.className='countdown-card';card.innerHTML=`<h3>${countdown.name}</h3><div class="countdown-meta"><span>${targetText}</span><span>${countdownText}</span></div><div class="countdown-actions"><button type="button" onclick="deleteCountdown('${countdown.id}')">Delete</button></div>`;container.appendChild(card);} }
+function addCountdown(e){e.preventDefault();const name=document.getElementById('countdown-name').value.trim();const date=document.getElementById('countdown-date').value;const time=document.getElementById('countdown-time').value; if(!name||!date){return;}const [year,month,day]=date.split('-').map(Number);const [hour,minute]=time?time.split(':').map(Number):[0,0];const target=new Date(year,month-1,day,hour||0,minute||0,0,0);const now=new Date();if(target.getTime()<now.getTime()){return;}countdowns.push({id:Date.now().toString(),name,targetTime:target.toISOString(),createdAt:now.toISOString()});saveCountdownData();renderCountdowns();document.getElementById('countdowns-form').reset();}
+function deleteCountdown(id){countdowns=countdowns.filter(c=>c.id!==id);saveCountdownData();renderCountdowns();}
+function openCountdownsPanel(){const panel=document.getElementById('countdowns-panel');if(!panel)return;panel.classList.add('open');renderCountdowns();showControls();}
+function closeCountdownsPanel(){const panel=document.getElementById('countdowns-panel');if(!panel)return;panel.classList.remove('open');hideControlsAfterDelay();}
 
 let controlsTimer=null;
 function showControls(){
@@ -111,7 +110,7 @@ function showControls(){
 }
 function hideControlsAfterDelay(){
   if(controlsTimer)clearTimeout(controlsTimer);
-  controlsTimer=setTimeout(()=>{const settingsOpen=document.getElementById('settings-panel').classList.contains('open');const chainsOpen=document.getElementById('chains-panel').classList.contains('open');if(!settingsOpen&&!chainsOpen)document.getElementById('app').classList.remove('controls-visible')},3000);
+  controlsTimer=setTimeout(()=>{const settingsOpen=document.getElementById('settings-panel').classList.contains('open');const countdownsOpen=document.getElementById('countdowns-panel').classList.contains('open');if(!settingsOpen&&!countdownsOpen)document.getElementById('app').classList.remove('controls-visible')},3000);
 }
 function toggleSettingsPanel(){
   const panel=document.getElementById('settings-panel');
@@ -124,24 +123,24 @@ function closeSettingsPanel(){
 }
 function initControls(){
   ['mousemove','mousedown','touchstart','keydown','click'].forEach(evt=>document.addEventListener(evt,showControls,{passive:true}));
-  document.addEventListener('click',e=>{const settingsPanel=document.getElementById('settings-panel');if(settingsPanel.classList.contains('open')&&!settingsPanel.contains(e.target)&&!e.target.closest('#settings-btn'))closeSettingsPanel();const chainsPanel=document.getElementById('chains-panel');if(chainsPanel.classList.contains('open')&&!chainsPanel.contains(e.target)&&!e.target.closest('#chains-btn'))closeChainsPanel();});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeSettingsPanel();closeChainsPanel();}});
-  const chainsBtn=document.getElementById('chains-btn');
-  if(chainsBtn)chainsBtn.addEventListener('click',e=>{e.stopPropagation();openChainsPanel()});
+  document.addEventListener('click',e=>{const settingsPanel=document.getElementById('settings-panel');if(settingsPanel.classList.contains('open')&&!settingsPanel.contains(e.target)&&!e.target.closest('#settings-btn'))closeSettingsPanel();const countdownsPanel=document.getElementById('countdowns-panel');if(countdownsPanel.classList.contains('open')&&!countdownsPanel.contains(e.target)&&!e.target.closest('#countdowns-btn'))closeCountdownsPanel();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeSettingsPanel();closeCountdownsPanel();}});
+  const countdownsBtn=document.getElementById('countdowns-btn');
+  if(countdownsBtn)countdownsBtn.addEventListener('click',e=>{e.stopPropagation();openCountdownsPanel()});
   const locBtn=document.getElementById('loc-btn');
   if(locBtn)locBtn.addEventListener('click',e=>{e.stopPropagation();requestLocation()});
   const settingsBtn=document.getElementById('settings-btn');
   if(settingsBtn)settingsBtn.addEventListener('click',e=>{e.stopPropagation();toggleSettingsPanel()});
   const closeBtn=document.getElementById('close-btn');
   if(closeBtn)closeBtn.addEventListener('click',e=>{e.stopPropagation();closeSettingsPanel()});
-  const closeChainsBtn=document.getElementById('close-chains-btn');
-  if(closeChainsBtn)closeChainsBtn.addEventListener('click',e=>{e.stopPropagation();closeChainsPanel()});
+  const closeCountdownsBtn=document.getElementById('close-countdowns-btn');
+  if(closeCountdownsBtn)closeCountdownsBtn.addEventListener('click',e=>{e.stopPropagation();closeCountdownsPanel()});
   const zipBtn=document.getElementById('zip-submit');
   if(zipBtn)zipBtn.addEventListener('click',e=>{e.stopPropagation();geocodeZipCode(document.getElementById('zip-input').value);});
   const zipInput=document.getElementById('zip-input');
   if(zipInput)zipInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();geocodeZipCode(zipInput.value)}});
-  const chainForm=document.getElementById('chains-form');
-  if(chainForm)chainForm.addEventListener('submit',addChain);
+  const countdownsForm=document.getElementById('countdowns-form');
+  if(countdownsForm)countdownsForm.addEventListener('submit',addCountdown);
   showControls();
 }
 
@@ -544,6 +543,8 @@ function updateClock(){
       runQuarterChime(min,h);
     }
   }
+  const countdownsPanel=document.getElementById('countdowns-panel');
+  if(countdownsPanel && countdownsPanel.classList.contains('open')) renderCountdowns();
 }
 
 function drawMenorah(lit){
@@ -584,7 +585,7 @@ function fallbackSky(){
 }
 
 const initialSetup=loadS();
-loadChains();
+loadCountdowns();
 initControls();
 fallbackSky();
 updateClock();
