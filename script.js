@@ -11,12 +11,16 @@ const audioFiles={
   'Hour':'./Hour.m4a',
   'Chime':'./Chime.m4a'
 };
+let audioContext = null;
+let audioBuffers = {};
+let activeAudioNodes = [];
 const COUNTDOWN_STORAGE_KEY='lcCountdowns';
 let countdowns=[];
 let countdownsInterval=null;
 let homeCountdownsInterval=null;
 
 function createAudioElement(name){
+  // Fallback to HTMLAudioElement if Web Audio isn't available or buffer isn't loaded
   const audio=document.createElement('audio');
   audio.src=audioFiles[name]||name;
   audio.preload='auto';
@@ -46,14 +50,65 @@ function clearChimeTimeouts(){
 function unlockAudio(){
   if(audioUnlocked) return;
   audioUnlocked=true;
-  const unlockClip=createAudioElement('15min');
-  unlockClip.muted=true;
-  unlockClip.play().then(()=>{unlockClip.pause();unlockClip.muted=false;unlockClip.remove()}).catch(()=>{unlockClip.remove()});
+  try{
+    if(!audioContext){
+      audioContext = new (window.AudioContext||window.webkitAudioContext)();
+    }
+    // preload buffers
+    loadAudioBuffers();
+  }catch(e){
+    // fallback to element-based unlock
+    const unlockClip=createAudioElement('15min');
+    unlockClip.muted=true;
+    unlockClip.play().then(()=>{unlockClip.pause();unlockClip.muted=false;unlockClip.remove()}).catch(()=>{unlockClip.remove()});
+  }
+}
+
+async function loadAudioBuffers(){
+  if(!audioContext) return;
+  const names = Object.keys(audioFiles);
+  for(const name of names){
+    if(audioBuffers[name]) continue;
+    try{
+      const url = audioFiles[name];
+      const res = await fetch(url);
+      const ab = await res.arrayBuffer();
+      const buf = await audioContext.decodeAudioData(ab.slice ? ab.slice(0) : ab);
+      audioBuffers[name] = buf;
+    }catch(e){console.warn('Failed to load audio',name,e)}
+  }
 }
 function playAudio(name){
+  // Prefer Web Audio API playback if buffer available
+  if(audioContext && audioBuffers[name]){
+    try{
+      const src = audioContext.createBufferSource();
+      src.buffer = audioBuffers[name];
+      src.connect(audioContext.destination);
+      src.start(0);
+      activeAudioNodes.push(src);
+      src.onended = ()=>{
+        const i = activeAudioNodes.indexOf(src); if(i>=0) activeAudioNodes.splice(i,1);
+      };
+      return src;
+    }catch(e){console.warn('WebAudio play failed',e)}
+  }
+  // fallback to HTMLAudioElement
   const audio=createAudioElement(name);
   audio.play().catch(()=>{audio.remove()});
   return audio;
+}
+
+function stopAllAudioNodes(){
+  // stop AudioBufferSourceNodes
+  try{
+    while(activeAudioNodes.length){
+      const n = activeAudioNodes.pop();
+      try{ n.onended=null; n.stop && n.stop(0); n.disconnect && n.disconnect(); }catch(e){}
+    }
+  }catch(e){console.warn('stopAllAudioNodes err',e)}
+  // pause any lingering HTMLAudioElements
+  document.querySelectorAll('audio').forEach(a=>{try{a.pause();a.remove()}catch(e){}});
 }
 function playHourlyCount(hour){
   const count = hour%12||12;
@@ -750,3 +805,45 @@ if(initialSetup){
   toggleSettingsPanel();
 }
 setInterval(updateClock,1000);
+
+// Stop/suspend audio when page is hidden or unloaded to avoid audio playing while browser is closed/in background
+// Do NOT suspend audio when the tab becomes hidden — allow chimes while another tab shows.
+// We still need to detect system sleep (lid closed) where timers are paused; use a timer drift heuristic.
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){
+    // no-op: keep audio available when page is in background/tab is hidden
+    return;
+  }
+  // when returning to visible, try to resume if possible
+  if(audioContext && audioContext.state==='suspended' && audioUnlocked) try{ audioContext.resume(); }catch(e){}
+});
+
+window.addEventListener('pagehide', ()=>{
+  stopAllAudioNodes();
+  if(audioContext && audioContext.state==='running') try{ audioContext.suspend(); }catch(e){}
+});
+
+window.addEventListener('beforeunload', ()=>{
+  stopAllAudioNodes();
+  if(audioContext && audioContext.state==='running') try{ audioContext.suspend(); }catch(e){}
+});
+
+// Detect system suspend (lid closed / sleep) via timer drift and suspend audio in that case.
+let _suspendDetectorLast = Date.now();
+let _suspendDetectorSuspended = false;
+setInterval(()=>{
+  const now = Date.now();
+  const delta = now - _suspendDetectorLast;
+  // if the event loop was frozen (delta much larger than interval), assume system sleep
+  const THRESH = 8000; // 8s
+  if(delta > THRESH && !_suspendDetectorSuspended){
+    _suspendDetectorSuspended = true;
+    stopAllAudioNodes();
+    try{ if(audioContext && audioContext.state==='running') audioContext.suspend(); }catch(e){}
+  } else if(delta <= THRESH && _suspendDetectorSuspended){
+    // system resumed
+    _suspendDetectorSuspended = false;
+    try{ if(audioContext && audioContext.state==='suspended' && audioUnlocked) audioContext.resume(); }catch(e){}
+  }
+  _suspendDetectorLast = now;
+}, 2000);
