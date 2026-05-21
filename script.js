@@ -279,6 +279,16 @@ function initControls(){
   // load hidden state
   try{const hidden=localStorage.getItem('lcHomeCountdownsHidden');if(hidden==='1'&&homeSection){homeSection.classList.add('home-countdowns-hidden'); if(toggleHome) toggleHome.textContent='Show'}}catch(e){}
   if(toggleHome) toggleHome.addEventListener('click',e=>{e.stopPropagation();if(!homeSection) return; const hidden=homeSection.classList.toggle('home-countdowns-hidden'); toggleHome.textContent=hidden?'Show':'Hide'; try{localStorage.setItem('lcHomeCountdownsHidden', hidden? '1':'0')}catch(e){} });
+  // external reshow button (useful when the home section itself is hidden)
+  const reshowBtn = document.getElementById('reshow-home-countdowns-btn');
+  if(reshowBtn) reshowBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if(!homeSection) return;
+    const hidden = homeSection.classList.toggle('home-countdowns-hidden');
+    if(toggleHome) toggleHome.textContent = hidden ? 'Show' : 'Hide';
+    try{ localStorage.setItem('lcHomeCountdownsHidden', hidden ? '1' : '0'); }catch(e){}
+    showControls();
+  });
   if(addHome) addHome.addEventListener('click',e=>{e.stopPropagation();openCountdownsPanel()});
   showControls();
 }

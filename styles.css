@@ -308,6 +308,14 @@ select {
   font-size: clamp(18px, 2.5vw, 22px);
 }
 
+#reshow-home-countdowns-btn {
+  top: clamp(10px, 2vh, 20px);
+  left: calc(clamp(10px, 2vw, 20px) + clamp(48px, 5vw, 52px));
+  width: clamp(36px, 4.2vw, 44px);
+  height: clamp(36px, 4.2vw, 44px);
+  font-size: clamp(16px, 2vw, 20px);
+}
+
 #loc-btn {
   top: calc(clamp(10px, 2vh, 20px) + clamp(50px, 4vh, 54px));
   left: clamp(10px, 2vw, 20px);
