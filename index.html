@@ -21,9 +21,6 @@
   @keyframes hourFlash{0%{opacity:0}10%{opacity:0.9}35%{opacity:0.35}100%{opacity:0}}
   #memorial-overlay{position:absolute;inset:0;pointer-events:none;z-index:28;background:#000;opacity:0;transition:opacity 1s ease}
   #memorial-overlay.active{opacity:1}
-  #towers-beams{position:absolute;inset:0;pointer-events:none;z-index:29;display:flex;align-items:center;justify-content:center;gap:8vw;opacity:0;transition:opacity 1s ease}
-  #towers-beams.active{opacity:1}
-  .tower-beam{width:min(12vw,160px);height:60%;background:linear-gradient(180deg,rgba(60,160,255,0.18),rgba(10,40,120,0.08));box-shadow:0 0 90px 28px rgba(50,150,255,0.22),0 0 24px 12px rgba(60,170,255,0.18);border-radius:999px;}
   #sky-layer{position:absolute;inset:0;transition:background 4s ease;z-index:0}
   #weather-anim{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden}
   #fog-layer{position:absolute;inset:0;z-index:3;pointer-events:none;transition:background 4s}
@@ -98,7 +95,6 @@
   <div id="sun-moon"></div>
   <div id="xmas-lights" aria-hidden="true"></div>
   <div id="memorial-overlay" aria-hidden="true"></div>
-  <div id="towers-beams" aria-hidden="true"><div class="tower-beam"></div><div class="tower-beam"></div></div>
 
   <button id="loc-btn" type="button" class="control-btn" aria-label="Get location">
     <span aria-hidden="true">📍</span>
@@ -161,6 +157,15 @@ let wData=null,uLat=null,uLon=null,wInt=null,aInt=null,tTO=null,cleanAnim=null,l
 let locationStatus='';
 let lastChimeMinute=null;
 let chimeTimeouts=[];
+let audioUnlocked=false;
+const audioFiles={
+  '15min':'./15min.m4a',
+  '30min':'./30min.m4a',
+  '45min':'./45min.m4a',
+  'Hour':'./Hour.m4a',
+  'Chime':'./Chime.m4a'
+};
+const audioCache={};
 
 function saveS(){try{localStorage.setItem('lcS',JSON.stringify(cfg))}catch(e){}renderToggles()}
 function saveLocation(){try{localStorage.setItem('lcLoc',JSON.stringify({lat:uLat,lon:uLon}))}catch(e){}}
@@ -175,8 +180,28 @@ function renderToggles(){
 function clearChimeTimeouts(){
   while(chimeTimeouts.length){clearTimeout(chimeTimeouts.pop())}
 }
-function playAudio(src){
-  const audio=new Audio(src);
+function initAudioCache(){
+  if(audioUnlocked) return;
+  Object.entries(audioFiles).forEach(([key,src])=>{
+    const audio=new Audio(src);
+    audio.preload='auto';
+    audio.volume=0.8;
+    audioCache[key]=audio;
+  });
+}
+function unlockAudio(){
+  if(audioUnlocked) return;
+  audioUnlocked=true;
+  initAudioCache();
+  const unlockClip=audioCache['15min'];
+  if(unlockClip){
+    unlockClip.muted=true;
+    unlockClip.play().then(()=>{unlockClip.pause();unlockClip.muted=false}).catch(()=>{});
+  }
+}
+function playAudio(name){
+  const cached=audioCache[name];
+  const audio=cached ? cached.cloneNode(true) : new Audio(audioFiles[name]||name);
   audio.volume=0.8;
   audio.play().catch(()=>{});
   return audio;
@@ -185,25 +210,25 @@ function playHourlyCount(hour){
   const count = cfg.use24h ? (hour===0?24:hour) : (hour%12||12);
   clearChimeTimeouts();
   for(let i=0;i<count;i++){
-    chimeTimeouts.push(setTimeout(()=>playAudio('Chime.m4a'), i * 1100));
+    chimeTimeouts.push(setTimeout(()=>playAudio('Chime'), i * 1100));
   }
 }
 function runQuarterChime(min,hour){
   clearChimeTimeouts();
   if(min===15){
-    playAudio('15min.m4a');
+    playAudio('15min');
     return;
   }
   if(min===30){
-    playAudio('30min.m4a');
+    playAudio('30min');
     return;
   }
   if(min===45){
-    playAudio('45min.m4a');
+    playAudio('45min');
     return;
   }
   if(min===0){
-    playAudio('Hour.m4a');
+    playAudio('Hour');
     flashHour();
     chimeTimeouts.push(setTimeout(()=>playHourlyCount(hour), 1400));
   }
@@ -221,6 +246,7 @@ function showControls(){
   const app=document.getElementById('app');
   app.classList.add('controls-visible');
   if(controlsTimer)clearTimeout(controlsTimer);
+  unlockAudio();
   if(document.getElementById('settings-panel').classList.contains('open'))return;
   controlsTimer=setTimeout(()=>{document.getElementById('app').classList.remove('controls-visible')},3000);
 }
@@ -617,21 +643,13 @@ function isMemorialDay(now){
 
 function updateMemorialOverlay(now){
   const overlay=document.getElementById('memorial-overlay');
-  const beams=document.getElementById('towers-beams');
-  if(!overlay||!beams)return;
+  if(!overlay)return;
 
   const is911=now.getMonth()===8 && now.getDate()===11;
   const isMemDay=isMemorialDay(now);
   const isThreePM=isMemDay && now.getHours()===15 && now.getMinutes()===0;
 
-  if(is911){
-    overlay.classList.add('active');
-    beams.classList.add('active');
-    return;
-  }
-
-  beams.classList.remove('active');
-  if(isThreePM){
+  if(is911 || isThreePM){
     overlay.classList.add('active');
   } else {
     overlay.classList.remove('active');
