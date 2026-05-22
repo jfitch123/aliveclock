@@ -216,8 +216,10 @@ function addCountdown(e){e.preventDefault();const name=document.getElementById('
 function deleteCountdown(id){countdowns=countdowns.filter(c=>c.id!==id);saveCountdownData();renderCountdowns();}
 function openCountdownsPanel(){
   const panel=document.getElementById('countdowns-panel');
+  const app=document.getElementById('app');
   if(!panel) return;
   panel.classList.add('open');
+  if(app) app.classList.add('panel-open');
   renderCountdowns();
   // start live updates
   if(!countdownsInterval) countdownsInterval=setInterval(updateCountdownDisplays,1000);
@@ -225,8 +227,10 @@ function openCountdownsPanel(){
 }
 function closeCountdownsPanel(){
   const panel=document.getElementById('countdowns-panel');
+  const app=document.getElementById('app');
   if(!panel) return;
   panel.classList.remove('open');
+  if(app) app.classList.remove('panel-open');
   // stop live updates
   if(countdownsInterval){clearInterval(countdownsInterval);countdownsInterval=null}
   hideControlsAfterDelay();
@@ -247,12 +251,14 @@ function hideControlsAfterDelay(){
 }
 function toggleSettingsPanel(){
   const panel=document.getElementById('settings-panel');
+  const app=document.getElementById('app');
   const open=panel.classList.toggle('open');
-  if(open){showControls()} else {hideControlsAfterDelay()}
+  if(open){ if(app) app.classList.add('panel-open'); showControls() } else { if(app) app.classList.remove('panel-open'); hideControlsAfterDelay() }
 }
 function closeSettingsPanel(){
   const panel=document.getElementById('settings-panel');
-  if(panel.classList.contains('open')){panel.classList.remove('open');hideControlsAfterDelay();}
+  const app=document.getElementById('app');
+  if(panel.classList.contains('open')){panel.classList.remove('open'); if(app) app.classList.remove('panel-open'); hideControlsAfterDelay();}
 }
 function initControls(){
   ['mousemove','mousedown','touchstart','keydown','click'].forEach(evt=>document.addEventListener(evt,showControls,{passive:true}));

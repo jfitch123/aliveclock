@@ -172,6 +172,15 @@ select {
   transition: transform 0.5s ease, opacity 0.5s ease;
 }
 
+/* When a panel is open, push and lower the main UI beneath the overlay */
+#app.panel-open #content {
+  z-index: 10;
+  transform: translateY(56px) scale(0.995);
+  filter: blur(2px) saturate(0.95);
+  opacity: 0.96;
+  pointer-events: none;
+}
+
 #time-row {
   display: flex;
   flex-wrap: wrap;
