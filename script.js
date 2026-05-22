@@ -157,15 +157,16 @@ function saveCountdownData(){
 function renderHomeCountdowns(){
   const container=document.getElementById('home-countdowns-list');
   if(!container) return;
+
   container.innerHTML='';
-  if(!countdowns.length){
-    container.innerHTML='';
+  if(!Array.isArray(countdowns) || countdowns.length===0){
     return;
   }
-  // show next up to 2 countdowns
+
   const now=new Date();
-  const upcoming = countdowns.slice().sort((a,b)=> new Date(a.targetTime||a.targetDate)-new Date(b.targetTime||b.targetDate));
-  const take = upcoming.slice(0,2);
+  const upcoming=[...countdowns].sort((a,b)=> new Date(a.targetTime||a.targetDate)-new Date(b.targetTime||b.targetDate));
+  const take=upcoming.slice(0,2);
+
   for(const cd of take){
     const target=new Date(cd.targetTime||cd.targetDate);
     const diff=Math.max(0,target.getTime()-now.getTime());
@@ -174,16 +175,20 @@ function renderHomeCountdowns(){
     const hours=Math.floor((totalSeconds%86400)/3600);
     const minutes=Math.floor((totalSeconds%3600)/60);
     const seconds=totalSeconds%60;
+    const title=cd.name || cd.title || cd.label || 'Countdown';
+
     const card=document.createElement('div');
     card.className='home-countdown-card';
-    const title = cd.name || cd.title || cd.label || 'Event';
-    card.innerHTML=`<div class="countdown-timer" data-target="${target.toISOString()}">
+
+    card.innerHTML=`
+      <div class="countdown-timer" data-target="${target.toISOString()}">
         <div class="countdown-unit"><div class="countdown-value cd-days">${String(days).padStart(2,'0')}</div><div class="countdown-label">days</div></div>
         <div class="countdown-unit"><div class="countdown-value cd-hours">${String(hours).padStart(2,'0')}</div><div class="countdown-label">hrs</div></div>
         <div class="countdown-unit"><div class="countdown-value cd-mins">${String(minutes).padStart(2,'0')}</div><div class="countdown-label">min</div></div>
         <div class="countdown-unit"><div class="countdown-value cd-secs">${String(seconds).padStart(2,'0')}</div><div class="countdown-label">sec</div></div>
       </div>
       <div class="home-countdown-title">${title}</div>`;
+
     container.appendChild(card);
   }
 }
