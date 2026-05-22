@@ -252,10 +252,30 @@ function showControls(){
   unlockAudio();
   if(document.getElementById('settings-panel').classList.contains('open'))return;
   controlsTimer=setTimeout(()=>{document.getElementById('app').classList.remove('controls-visible')},3000);
+  syncHomeCountdownsRestoreButton();
 }
 function hideControlsAfterDelay(){
   if(controlsTimer)clearTimeout(controlsTimer);
   controlsTimer=setTimeout(()=>{const settingsOpen=document.getElementById('settings-panel').classList.contains('open');const countdownsOpen=document.getElementById('countdowns-panel').classList.contains('open');if(!settingsOpen&&!countdownsOpen)document.getElementById('app').classList.remove('controls-visible')},3000);
+}
+function isHomeCountdownsHidden(){
+  const homeSection=document.getElementById('home-countdowns');
+  return !!(homeSection && homeSection.classList.contains('home-countdowns-hidden'));
+}
+function syncHomeCountdownsRestoreButton(){
+  const btn=document.getElementById('home-countdowns-restore-btn');
+  if(!btn) return;
+  btn.classList.toggle('visible', isHomeCountdownsHidden());
+}
+function restoreHomeCountdowns(){
+  const homeSection=document.getElementById('home-countdowns');
+  if(!homeSection) return;
+  homeSection.classList.remove('home-countdowns-hidden');
+  const toggleHome=document.getElementById('toggle-home-countdowns');
+  if(toggleHome) toggleHome.textContent='Hide';
+  try{localStorage.setItem('lcHomeCountdownsHidden','0')}catch(e){}
+  syncHomeCountdownsRestoreButton();
+  showControls();
 }
 function toggleSettingsPanel(){
   const panel=document.getElementById('settings-panel');
@@ -290,11 +310,14 @@ function initControls(){
   if(countdownsForm)countdownsForm.addEventListener('submit',addCountdown);
   const toggleHome=document.getElementById('toggle-home-countdowns');
   const addHome=document.getElementById('add-home-countdown');
+  const restoreHomeBtn=document.getElementById('home-countdowns-restore-btn');
   const homeSection=document.getElementById('home-countdowns');
   // load hidden state
   try{const hidden=localStorage.getItem('lcHomeCountdownsHidden');if(hidden==='1'&&homeSection){homeSection.classList.add('home-countdowns-hidden'); if(toggleHome) toggleHome.textContent='Show'}}catch(e){}
-  if(toggleHome) toggleHome.addEventListener('click',e=>{e.stopPropagation();if(!homeSection) return; const hidden=homeSection.classList.toggle('home-countdowns-hidden'); toggleHome.textContent=hidden?'Show':'Hide'; try{localStorage.setItem('lcHomeCountdownsHidden', hidden? '1':'0')}catch(e){} });
+  if(toggleHome) toggleHome.addEventListener('click',e=>{e.stopPropagation();if(!homeSection) return; const hidden=homeSection.classList.toggle('home-countdowns-hidden'); toggleHome.textContent=hidden?'Show':'Hide'; try{localStorage.setItem('lcHomeCountdownsHidden', hidden? '1':'0')}catch(e){} syncHomeCountdownsRestoreButton(); });
   if(addHome) addHome.addEventListener('click',e=>{e.stopPropagation();openCountdownsPanel()});
+  if(restoreHomeBtn) restoreHomeBtn.addEventListener('click',e=>{e.stopPropagation();restoreHomeCountdowns();});
+  syncHomeCountdownsRestoreButton();
   showControls();
 }
 
