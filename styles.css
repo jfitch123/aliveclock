@@ -328,6 +328,23 @@ body.us-july4 .srow {
   display: none;
   align-items: center;
   justify-content: center;
+  position: absolute;
+  top: clamp(10px, 2vh, 20px);
+  left: clamp(10px, 2vw, 20px);
+  width: clamp(40px, 5vw, 48px);
+  height: clamp(40px, 5vw, 48px);
+  padding: 0;
+  border-radius: 999px;
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  z-index: 20;
+}
+
+.home-countdowns-restore:hover {
+  background: var(--control-hover);
 }
 
 .home-countdowns-restore.visible {
