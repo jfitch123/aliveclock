@@ -6,11 +6,15 @@
 <div id="app">
   <div id="sky-layer"></div>
   <div id="weather-anim"></div>
+  <div id="fireworks-layer" aria-hidden="true"></div>
   <div id="fog-layer"></div>
   <div id="sun-moon"></div>
   <div id="xmas-lights" aria-hidden="true"></div>
   <div id="memorial-overlay" aria-hidden="true"></div>
 
+  <button id="countdowns-btn" type="button" class="control-btn" aria-label="Open countdowns">
+    <span aria-hidden="true">⏰</span>
+  </button>
   <button id="loc-btn" type="button" class="control-btn" aria-label="Get location">
     <span aria-hidden="true">📍</span>
     <span id="loc-label">Get location</span>
@@ -52,10 +56,6 @@
     </div>
   </div>
 
-    <div style="width:100%;display:flex;justify-content:center;margin-top:12px">
-      <button id="reshow-home-countdowns-btn" class="control-small" type="button" aria-label="Show Countdowns">Show Countdowns</button>
-    </div>
-
   <div id="settings-panel" role="dialog" aria-label="Clock settings">
     <div id="settings-inner">
       <h2><i class="ti ti-settings" style="margin-right:8px;vertical-align:-2px" aria-hidden="true"></i><span id="settings-heading">Settings</span></h2>
@@ -94,10 +94,6 @@
         <div class="srow column">
           <label for="countdown-time">Target time (optional)</label>
           <input id="countdown-time" class="text-input" type="time" />
-        </div>
-        <div class="srow column">
-          <label for="countdown-showhome">Show on main screen</label>
-          <input id="countdown-showhome" type="checkbox" checked />
         </div>
         <button id="countdown-add-btn" type="submit" class="zip-btn" style="width:100%;margin-top:10px">Save countdown</button>
       </form>

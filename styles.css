@@ -160,7 +160,7 @@ select {
 
 #content {
   position: relative;
-  z-index: 10;
+  z-index: 35;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -243,6 +243,49 @@ select {
   animation: floatBob 3s ease-in-out infinite;
 }
 
+body.us-july4 #app {
+  background: radial-gradient(circle at top, #ffffff 0%, #002868 40%, #bf0a30 100%);
+}
+
+body.us-july4 #time-display,
+body.us-july4 #seconds-display,
+body.us-july4 #ampm-display,
+body.us-july4 #date-display,
+body.us-july4 #holiday-display {
+  color: #fff;
+  text-shadow: 0 0 16px rgba(0, 0, 0, 0.45);
+}
+
+body.us-july4 .control-btn,
+body.us-july4 .control-small,
+body.us-july4 .zip-btn,
+body.us-july4 .srow {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+#fireworks-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 34;
+  overflow: hidden;
+}
+
+.firework-spark {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  opacity: 1;
+  animation: firework-spark 1.1s ease-out forwards;
+}
+
+@keyframes firework-spark {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; }
+}
+
 /* Home countdowns widget */
 .home-section { width: 100%; margin-top: 18px; display:flex; flex-direction:column; align-items:center }
 .home-countdowns-header{ width:100%; max-width:720px; display:flex; align-items:center; justify-content:space-between; gap:12px }
@@ -251,12 +294,9 @@ select {
 .control-small{ padding:6px 8px; border-radius:8px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.06); color:#fff; cursor:pointer }
 .control-small:hover{ background:rgba(255,255,255,0.1) }
 #home-countdowns-list{ width:100%; max-width:720px; margin-top:10px; display:flex; gap:10px; justify-content:center; align-items:center }
-.home-countdown-card{ background: rgba(255,255,255,0.06); padding:8px 10px; border-radius:10px; display:flex; flex-direction:column; gap:8px; align-items:center; min-width:0; width: 160px }
-.home-countdown-card .countdown-timer{ display:flex; gap:8px; align-items:flex-end; justify-content:center; width:100% }
-.home-countdown-card .countdown-unit{ flex: 1 1 auto; min-width:0; text-align:center }
-.home-countdown-card .countdown-value{ font-size: clamp(14px, 5vw, 28px); padding:6px 8px; background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,245,240,0.96)); color: #07111f; display:inline-block; border-radius:6px }
-.home-countdown-card .countdown-label{ font-size:11px; color:rgba(255,255,255,0.9); margin-top:6px }
-.home-countdown-card .home-countdown-name{ font-size:13px; color:rgba(255,255,255,0.95); text-align:center; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.home-countdown-card{ background: rgba(255,255,255,0.06); padding:8px 10px; border-radius:10px; display:flex; gap:10px; align-items:center; min-width:0 }
+.home-countdown-card .countdown-value{ font-size: clamp(18px, 6vw, 40px); padding:6px 8px }
+.home-countdown-card .countdown-label{ font-size:12px; color:rgba(255,255,255,0.9); margin-top:6px }
 
 /* hidden state */
 .home-countdowns-hidden{ display:none }
@@ -310,21 +350,6 @@ select {
   height: clamp(40px, 5vw, 48px);
   font-size: clamp(18px, 2.5vw, 22px);
 }
-
-/* Button placed under main content to reshow home countdowns */
-#reshow-home-countdowns-btn {
-  position: relative;
-  display: inline-block;
-  margin: 0 auto;
-  padding: 8px 14px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.06);
-  color: #fff;
-  cursor: pointer;
-  font-size: 14px;
-}
-#reshow-home-countdowns-btn:hover{ background: rgba(255,255,255,0.1) }
 
 #loc-btn {
   top: calc(clamp(10px, 2vh, 20px) + clamp(50px, 4vh, 54px));
@@ -566,13 +591,10 @@ select {
 
 #settings-btn,
 #loc-btn,
-#status-msg,
-#toggle-home-countdowns,
-#add-home-countdown,
-#reshow-home-countdowns-btn {
+#status-msg {
   opacity: 0;
   transform: translateY(-8px);
-  pointer-events: none;
+  pointer-events: auto;
   transition: opacity 0.2s, transform 0.2s;
 }
 
@@ -582,10 +604,7 @@ select {
 
 #app.controls-visible #settings-btn,
 #app.controls-visible #loc-btn,
-#app.controls-visible #status-msg,
-#app.controls-visible #toggle-home-countdowns,
-#app.controls-visible #add-home-countdown,
-#app.controls-visible #reshow-home-countdowns-btn {
+#app.controls-visible #status-msg {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);

@@ -4,6 +4,8 @@ let locationStatus='';
 let lastChimeMinute=null;
 let chimeTimeouts=[];
 let audioUnlocked=false;
+let isUS=false;
+let fireworksTimer=null;
 const audioFiles={
   '15min':'./15min.m4a',
   '30min':'./30min.m4a',
@@ -11,16 +13,12 @@ const audioFiles={
   'Hour':'./Hour.m4a',
   'Chime':'./Chime.m4a'
 };
-let audioContext = null;
-let audioBuffers = {};
-let activeAudioNodes = [];
 const COUNTDOWN_STORAGE_KEY='lcCountdowns';
 let countdowns=[];
 let countdownsInterval=null;
 let homeCountdownsInterval=null;
 
 function createAudioElement(name){
-  // Fallback to HTMLAudioElement if Web Audio isn't available or buffer isn't loaded
   const audio=document.createElement('audio');
   audio.src=audioFiles[name]||name;
   audio.preload='auto';
@@ -50,65 +48,14 @@ function clearChimeTimeouts(){
 function unlockAudio(){
   if(audioUnlocked) return;
   audioUnlocked=true;
-  try{
-    if(!audioContext){
-      audioContext = new (window.AudioContext||window.webkitAudioContext)();
-    }
-    // preload buffers
-    loadAudioBuffers();
-  }catch(e){
-    // fallback to element-based unlock
-    const unlockClip=createAudioElement('15min');
-    unlockClip.muted=true;
-    unlockClip.play().then(()=>{unlockClip.pause();unlockClip.muted=false;unlockClip.remove()}).catch(()=>{unlockClip.remove()});
-  }
-}
-
-async function loadAudioBuffers(){
-  if(!audioContext) return;
-  const names = Object.keys(audioFiles);
-  for(const name of names){
-    if(audioBuffers[name]) continue;
-    try{
-      const url = audioFiles[name];
-      const res = await fetch(url);
-      const ab = await res.arrayBuffer();
-      const buf = await audioContext.decodeAudioData(ab.slice ? ab.slice(0) : ab);
-      audioBuffers[name] = buf;
-    }catch(e){console.warn('Failed to load audio',name,e)}
-  }
+  const unlockClip=createAudioElement('15min');
+  unlockClip.muted=true;
+  unlockClip.play().then(()=>{unlockClip.pause();unlockClip.muted=false;unlockClip.remove()}).catch(()=>{unlockClip.remove()});
 }
 function playAudio(name){
-  // Prefer Web Audio API playback if buffer available
-  if(audioContext && audioBuffers[name]){
-    try{
-      const src = audioContext.createBufferSource();
-      src.buffer = audioBuffers[name];
-      src.connect(audioContext.destination);
-      src.start(0);
-      activeAudioNodes.push(src);
-      src.onended = ()=>{
-        const i = activeAudioNodes.indexOf(src); if(i>=0) activeAudioNodes.splice(i,1);
-      };
-      return src;
-    }catch(e){console.warn('WebAudio play failed',e)}
-  }
-  // fallback to HTMLAudioElement
   const audio=createAudioElement(name);
   audio.play().catch(()=>{audio.remove()});
   return audio;
-}
-
-function stopAllAudioNodes(){
-  // stop AudioBufferSourceNodes
-  try{
-    while(activeAudioNodes.length){
-      const n = activeAudioNodes.pop();
-      try{ n.onended=null; n.stop && n.stop(0); n.disconnect && n.disconnect(); }catch(e){}
-    }
-  }catch(e){console.warn('stopAllAudioNodes err',e)}
-  // pause any lingering HTMLAudioElements
-  document.querySelectorAll('audio').forEach(a=>{try{a.pause();a.remove()}catch(e){}});
 }
 function playHourlyCount(hour){
   const count = hour%12||12;
@@ -190,9 +137,7 @@ function renderCountdowns(){
         </div>
       </div>
       <div class="countdown-meta"><span>${targetText}</span></div>
-      <div class="countdown-actions"><button type="button" onclick="deleteCountdown('${countdown.id}')">Delete</button>
-        <label class="count-showhome"><input type="checkbox" onchange="toggleShowOnHome('${countdown.id}', this.checked)" ${countdown.showOnHome!==false? 'checked':''}/> Show on main</label>
-      </div>
+      <div class="countdown-actions"><button type="button" onclick="deleteCountdown('${countdown.id}')">Delete</button></div>
     `;
 
     container.appendChild(card);
@@ -213,15 +158,13 @@ function renderHomeCountdowns(){
   const container=document.getElementById('home-countdowns-list');
   if(!container) return;
   container.innerHTML='';
-  // filter for those marked to show on home
-  const visible = countdowns.filter(c=> c.showOnHome !== false);
-  if(!visible.length){
+  if(!countdowns.length){
     container.innerHTML='';
     return;
   }
   // show next up to 2 countdowns
   const now=new Date();
-  const upcoming = visible.slice().sort((a,b)=> new Date(a.targetTime||a.targetDate)-new Date(b.targetTime||b.targetDate));
+  const upcoming = countdowns.slice().sort((a,b)=> new Date(a.targetTime||a.targetDate)-new Date(b.targetTime||b.targetDate));
   const take = upcoming.slice(0,2);
   for(const cd of take){
     const target=new Date(cd.targetTime||cd.targetDate);
@@ -238,17 +181,9 @@ function renderHomeCountdowns(){
         <div class="countdown-unit"><div class="countdown-value cd-hours">${String(hours).padStart(2,'0')}</div><div class="countdown-label">hrs</div></div>
         <div class="countdown-unit"><div class="countdown-value cd-mins">${String(minutes).padStart(2,'0')}</div><div class="countdown-label">min</div></div>
         <div class="countdown-unit"><div class="countdown-value cd-secs">${String(seconds).padStart(2,'0')}</div><div class="countdown-label">sec</div></div>
-      </div>
-      <div class="home-countdown-name">${cd.name}</div>`;
+      </div>`;
     container.appendChild(card);
   }
-}
-
-function updateReshowVisibility(){
-  const reshowBtn=document.getElementById('reshow-home-countdowns-btn');
-  const homeSection=document.getElementById('home-countdowns');
-  if(!reshowBtn||!homeSection) return;
-  reshowBtn.style.display = homeSection.classList.contains('home-countdowns-hidden') ? 'inline-block' : 'none';
 }
 
 function updateCountdownDisplays(){
@@ -278,33 +213,8 @@ function updateCountdownDisplays(){
     set('cd-secs',seconds);
   });
 }
-function addCountdown(e){
-  e.preventDefault();
-  const name=document.getElementById('countdown-name').value.trim();
-  const date=document.getElementById('countdown-date').value;
-  const time=document.getElementById('countdown-time').value;
-  const showOnHomeEl=document.getElementById('countdown-showhome');
-  const showOnHome=!!(showOnHomeEl && showOnHomeEl.checked);
-  if(!name||!date){return}
-  const [year,month,day]=date.split('-').map(Number);
-  const [hour,minute]=time?time.split(':').map(Number):[0,0];
-  const target=new Date(year,month-1,day,hour||0,minute||0,0,0);
-  const now=new Date();
-  if(target.getTime()<now.getTime()){return}
-  countdowns.push({id:Date.now().toString(),name,targetTime:target.toISOString(),createdAt:now.toISOString(),showOnHome:showOnHome});
-  saveCountdownData();
-  renderCountdowns();
-  document.getElementById('countdowns-form').reset();
-}
+function addCountdown(e){e.preventDefault();const name=document.getElementById('countdown-name').value.trim();const date=document.getElementById('countdown-date').value;const time=document.getElementById('countdown-time').value; if(!name||!date){return;}const [year,month,day]=date.split('-').map(Number);const [hour,minute]=time?time.split(':').map(Number):[0,0];const target=new Date(year,month-1,day,hour||0,minute||0,0,0);const now=new Date();if(target.getTime()<now.getTime()){return;}countdowns.push({id:Date.now().toString(),name,targetTime:target.toISOString(),createdAt:now.toISOString()});saveCountdownData();renderCountdowns();document.getElementById('countdowns-form').reset();}
 function deleteCountdown(id){countdowns=countdowns.filter(c=>c.id!==id);saveCountdownData();renderCountdowns();}
-function toggleShowOnHome(id, explicit){
-  const i = countdowns.findIndex(c=>c.id===id);
-  if(i<0) return;
-  if(typeof explicit === 'boolean') countdowns[i].showOnHome = explicit;
-  else countdowns[i].showOnHome = !countdowns[i].showOnHome;
-  try{localStorage.setItem(COUNTDOWN_STORAGE_KEY,JSON.stringify(countdowns))}catch(e){}
-  try{renderHomeCountdowns();renderCountdowns();updateReshowVisibility();}catch(e){}
-}
 function openCountdownsPanel(){
   const panel=document.getElementById('countdowns-panel');
   if(!panel) return;
@@ -347,8 +257,10 @@ function closeSettingsPanel(){
 }
 function initControls(){
   ['mousemove','mousedown','touchstart','keydown','click'].forEach(evt=>document.addEventListener(evt,showControls,{passive:true}));
-  document.addEventListener('click',e=>{const settingsPanel=document.getElementById('settings-panel');if(settingsPanel.classList.contains('open')&&!settingsPanel.contains(e.target)&&!e.target.closest('#settings-btn'))closeSettingsPanel();const countdownsPanel=document.getElementById('countdowns-panel');if(countdownsPanel.classList.contains('open')&&!countdownsPanel.contains(e.target))closeCountdownsPanel();});
+  document.addEventListener('click',e=>{const settingsPanel=document.getElementById('settings-panel');if(settingsPanel.classList.contains('open')&&!settingsPanel.contains(e.target)&&!e.target.closest('#settings-btn'))closeSettingsPanel();const countdownsPanel=document.getElementById('countdowns-panel');if(countdownsPanel.classList.contains('open')&&!countdownsPanel.contains(e.target)&&!e.target.closest('#countdowns-btn'))closeCountdownsPanel();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeSettingsPanel();closeCountdownsPanel();}});
+  const countdownsBtn=document.getElementById('countdowns-btn');
+  if(countdownsBtn)countdownsBtn.addEventListener('click',e=>{e.stopPropagation();openCountdownsPanel()});
   const locBtn=document.getElementById('loc-btn');
   if(locBtn)locBtn.addEventListener('click',e=>{e.stopPropagation();requestLocation()});
   const settingsBtn=document.getElementById('settings-btn');
@@ -368,25 +280,7 @@ function initControls(){
   const homeSection=document.getElementById('home-countdowns');
   // load hidden state
   try{const hidden=localStorage.getItem('lcHomeCountdownsHidden');if(hidden==='1'&&homeSection){homeSection.classList.add('home-countdowns-hidden'); if(toggleHome) toggleHome.textContent='Show'}}catch(e){}
-  const reshowBtn = document.getElementById('reshow-home-countdowns-btn');
-  const updateReshowVisibility = () => {
-    if(!reshowBtn||!homeSection) return;
-    reshowBtn.style.display = homeSection.classList.contains('home-countdowns-hidden') ? 'inline-block' : 'none';
-  };
-  // initial visibility
-  updateReshowVisibility();
-
-  if(toggleHome) toggleHome.addEventListener('click',e=>{e.stopPropagation();if(!homeSection) return; const hidden=homeSection.classList.toggle('home-countdowns-hidden'); toggleHome.textContent=hidden?'Show':'Hide'; try{localStorage.setItem('lcHomeCountdownsHidden', hidden? '1':'0')}catch(e){} updateReshowVisibility(); });
-  // external reshow button (useful when the home section itself is hidden)
-  if(reshowBtn) reshowBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    if(!homeSection) return;
-    const hidden = homeSection.classList.toggle('home-countdowns-hidden');
-    if(toggleHome) toggleHome.textContent = hidden ? 'Show' : 'Hide';
-    try{ localStorage.setItem('lcHomeCountdownsHidden', hidden ? '1' : '0'); }catch(e){}
-    updateReshowVisibility();
-    showControls();
-  });
+  if(toggleHome) toggleHome.addEventListener('click',e=>{e.stopPropagation();if(!homeSection) return; const hidden=homeSection.classList.toggle('home-countdowns-hidden'); toggleHome.textContent=hidden?'Show':'Hide'; try{localStorage.setItem('lcHomeCountdownsHidden', hidden? '1':'0')}catch(e){} });
   if(addHome) addHome.addEventListener('click',e=>{e.stopPropagation();openCountdownsPanel()});
   showControls();
 }
@@ -473,6 +367,8 @@ async function reverseGeocode(lat,lon){
     const city=addr.city||addr.town||addr.village||addr.county||'';
     const state=addr.state_code||addr.state||'';
     const country=addr.country_code?addr.country_code.toUpperCase():'';
+    isUS = country==='US';
+    document.body.classList.toggle('us-july4-user', isUS);
     let loc='';
     if(city&&state&&country==='US') loc=`${city}, ${state}`;
     else if(city&&country) loc=`${city}, ${country}`;
@@ -716,14 +612,23 @@ function checkHolidays(){
     else if(m===6&&d>=16&&d<=19)holiday={e:'🌙'};
   }
   if(!holiday&&cfg.showSec){
-    if(m===7&&d===4)holiday={e:'🎇'};
-    else if(m===3&&d===17)holiday={e:'🍀'};
+    if(m===7&&d===4){
+      holiday={type:isUS?'us4th':'summer',e:isUS?'🎆':'🎇'};
+    } else if(m===3&&d===17)holiday={e:'🍀'};
     else if(m===5&&d>=8&&d<=14)holiday={e:'💐'};
   }
 
   if(holiday){
     if(holiday.type==='menorah'){drawMenorah(holiday.day)}
     else{hdEl.textContent=holiday.e}
+  }
+
+  if(holiday && holiday.type==='us4th'){
+    document.body.classList.add('us-july4');
+    startFireworks();
+  } else {
+    document.body.classList.remove('us-july4');
+    clearFireworks();
   }
 
   if(cfg.showChr&&m===12){xl.style.display='block';drawXmasLights()}
@@ -767,6 +672,43 @@ function updateMemorialOverlay(now){
   } else {
     overlay.classList.remove('active');
   }
+}
+
+function clearFireworks(){
+  if(fireworksTimer){clearInterval(fireworksTimer);fireworksTimer=null}
+  const layer=document.getElementById('fireworks-layer');
+  if(layer) layer.innerHTML='';
+}
+
+function startFireworks(){
+  clearFireworks();
+  const layer=document.getElementById('fireworks-layer');
+  if(!layer) return;
+  fireworksTimer=setInterval(()=>{
+    const x=Math.random()*100;
+    const y=10+Math.random()*35;
+    const colors=['#ffffff','#bf0a30','#002868'];
+    const sparks=12 + Math.floor(Math.random()*8);
+    const group=document.createElement('div');
+    group.className='firework';
+    group.style.left=`${x}%`;
+    group.style.top=`${y}%`;
+    for(let i=0;i<sparks;i++){
+      const spark=document.createElement('div');
+      spark.className='firework-spark';
+      const angle=(Math.PI*2/sparks)*i;
+      const radius=70 + Math.random()*40;
+      const dx=Math.cos(angle)*radius;
+      const dy=Math.sin(angle)*radius;
+      spark.style.setProperty('--dx', `${dx}px`);
+      spark.style.setProperty('--dy', `${dy}px`);
+      spark.style.background=colors[i%colors.length];
+      spark.style.animationDuration=`${0.9 + Math.random()*0.4}s`;
+      group.appendChild(spark);
+    }
+    layer.appendChild(group);
+    setTimeout(()=>group.remove(), 1300);
+  }, 900);
 }
 
 function updateClock(){
@@ -848,45 +790,3 @@ if(initialSetup){
   toggleSettingsPanel();
 }
 setInterval(updateClock,1000);
-
-// Stop/suspend audio when page is hidden or unloaded to avoid audio playing while browser is closed/in background
-// Do NOT suspend audio when the tab becomes hidden — allow chimes while another tab shows.
-// We still need to detect system sleep (lid closed) where timers are paused; use a timer drift heuristic.
-document.addEventListener('visibilitychange', ()=>{
-  if(document.hidden){
-    // no-op: keep audio available when page is in background/tab is hidden
-    return;
-  }
-  // when returning to visible, try to resume if possible
-  if(audioContext && audioContext.state==='suspended' && audioUnlocked) try{ audioContext.resume(); }catch(e){}
-});
-
-window.addEventListener('pagehide', ()=>{
-  stopAllAudioNodes();
-  if(audioContext && audioContext.state==='running') try{ audioContext.suspend(); }catch(e){}
-});
-
-window.addEventListener('beforeunload', ()=>{
-  stopAllAudioNodes();
-  if(audioContext && audioContext.state==='running') try{ audioContext.suspend(); }catch(e){}
-});
-
-// Detect system suspend (lid closed / sleep) via timer drift and suspend audio in that case.
-let _suspendDetectorLast = Date.now();
-let _suspendDetectorSuspended = false;
-setInterval(()=>{
-  const now = Date.now();
-  const delta = now - _suspendDetectorLast;
-  // if the event loop was frozen (delta much larger than interval), assume system sleep
-  const THRESH = 8000; // 8s
-  if(delta > THRESH && !_suspendDetectorSuspended){
-    _suspendDetectorSuspended = true;
-    stopAllAudioNodes();
-    try{ if(audioContext && audioContext.state==='running') audioContext.suspend(); }catch(e){}
-  } else if(delta <= THRESH && _suspendDetectorSuspended){
-    // system resumed
-    _suspendDetectorSuspended = false;
-    try{ if(audioContext && audioContext.state==='suspended' && audioUnlocked) audioContext.resume(); }catch(e){}
-  }
-  _suspendDetectorLast = now;
-}, 2000);
