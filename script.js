@@ -115,8 +115,9 @@ function renderCountdowns(){
     card.className='countdown-card';
 
     // large timer layout
+    const title = countdown.name || countdown.title || countdown.label || 'Event';
     card.innerHTML=`
-      <h3>${countdown.name}</h3>
+      <h3>${title}</h3>
       <div class="countdown-timer" data-target="${target.toISOString()}">
         <div class="countdown-unit">
           <div class="countdown-value cd-days">00</div>
@@ -175,13 +176,14 @@ function renderHomeCountdowns(){
     const seconds=totalSeconds%60;
     const card=document.createElement('div');
     card.className='home-countdown-card';
+    const title = cd.name || cd.title || cd.label || 'Event';
     card.innerHTML=`<div class="countdown-timer" data-target="${target.toISOString()}">
         <div class="countdown-unit"><div class="countdown-value cd-days">${String(days).padStart(2,'0')}</div><div class="countdown-label">days</div></div>
         <div class="countdown-unit"><div class="countdown-value cd-hours">${String(hours).padStart(2,'0')}</div><div class="countdown-label">hrs</div></div>
         <div class="countdown-unit"><div class="countdown-value cd-mins">${String(minutes).padStart(2,'0')}</div><div class="countdown-label">min</div></div>
         <div class="countdown-unit"><div class="countdown-value cd-secs">${String(seconds).padStart(2,'0')}</div><div class="countdown-label">sec</div></div>
       </div>
-      <div class="home-countdown-title">${cd.name}</div>`;
+      <div class="home-countdown-title">${title}</div>`;
     container.appendChild(card);
   }
 }
