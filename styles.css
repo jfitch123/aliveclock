@@ -88,7 +88,8 @@ select {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 28;
+  /* keep memorials visually behind the UI (background) */
+  z-index: 2;
   background: #000;
   opacity: 0;
   transition: opacity 1.2s ease;
@@ -383,9 +384,10 @@ body.us-july4 .srow {
 
 #countdowns-panel,
 #settings-panel {
-  position: absolute;
+  /* full-screen overlay panels */
+  position: fixed;
   inset: 0;
-  z-index: 30;
+  z-index: 1000;
   display: none;
   align-items: center;
   justify-content: center;
@@ -641,9 +643,9 @@ body.us-july4 .srow {
 }
 
 #settings-panel {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 30;
+  z-index: 1000;
   display: none;
   align-items: center;
   justify-content: center;
