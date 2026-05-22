@@ -347,10 +347,8 @@ function closeSettingsPanel(){
 }
 function initControls(){
   ['mousemove','mousedown','touchstart','keydown','click'].forEach(evt=>document.addEventListener(evt,showControls,{passive:true}));
-  document.addEventListener('click',e=>{const settingsPanel=document.getElementById('settings-panel');if(settingsPanel.classList.contains('open')&&!settingsPanel.contains(e.target)&&!e.target.closest('#settings-btn'))closeSettingsPanel();const countdownsPanel=document.getElementById('countdowns-panel');if(countdownsPanel.classList.contains('open')&&!countdownsPanel.contains(e.target)&&!e.target.closest('#countdowns-btn'))closeCountdownsPanel();});
+  document.addEventListener('click',e=>{const settingsPanel=document.getElementById('settings-panel');if(settingsPanel.classList.contains('open')&&!settingsPanel.contains(e.target)&&!e.target.closest('#settings-btn'))closeSettingsPanel();const countdownsPanel=document.getElementById('countdowns-panel');if(countdownsPanel.classList.contains('open')&&!countdownsPanel.contains(e.target))closeCountdownsPanel();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeSettingsPanel();closeCountdownsPanel();}});
-  const countdownsBtn=document.getElementById('countdowns-btn');
-  if(countdownsBtn)countdownsBtn.addEventListener('click',e=>{e.stopPropagation();openCountdownsPanel()});
   const locBtn=document.getElementById('loc-btn');
   if(locBtn)locBtn.addEventListener('click',e=>{e.stopPropagation();requestLocation()});
   const settingsBtn=document.getElementById('settings-btn');

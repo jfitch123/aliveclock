@@ -566,10 +566,13 @@ select {
 
 #settings-btn,
 #loc-btn,
-#status-msg {
+#status-msg,
+#toggle-home-countdowns,
+#add-home-countdown,
+#reshow-home-countdowns-btn {
   opacity: 0;
   transform: translateY(-8px);
-  pointer-events: auto;
+  pointer-events: none;
   transition: opacity 0.2s, transform 0.2s;
 }
 
@@ -579,7 +582,10 @@ select {
 
 #app.controls-visible #settings-btn,
 #app.controls-visible #loc-btn,
-#app.controls-visible #status-msg {
+#app.controls-visible #status-msg,
+#app.controls-visible #toggle-home-countdowns,
+#app.controls-visible #add-home-countdown,
+#app.controls-visible #reshow-home-countdowns-btn {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
