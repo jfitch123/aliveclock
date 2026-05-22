@@ -81,7 +81,6 @@ function runQuarterChime(min,hour){
   if(min===0){
     playAudio('Hour');
     flashHour();
-    chimeTimeouts.push(setTimeout(()=>playHourlyCount(hour), 1400));
   }
 }
 function flashHour(){
