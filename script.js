@@ -180,7 +180,8 @@ function renderHomeCountdowns(){
         <div class="countdown-unit"><div class="countdown-value cd-hours">${String(hours).padStart(2,'0')}</div><div class="countdown-label">hrs</div></div>
         <div class="countdown-unit"><div class="countdown-value cd-mins">${String(minutes).padStart(2,'0')}</div><div class="countdown-label">min</div></div>
         <div class="countdown-unit"><div class="countdown-value cd-secs">${String(seconds).padStart(2,'0')}</div><div class="countdown-label">sec</div></div>
-      </div>`;
+      </div>
+      <div class="home-countdown-title">${cd.name}</div>`;
     container.appendChild(card);
   }
 }
