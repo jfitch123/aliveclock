@@ -256,7 +256,14 @@ function showControls(){
 }
 function hideControlsAfterDelay(){
   if(controlsTimer)clearTimeout(controlsTimer);
-  controlsTimer=setTimeout(()=>{const settingsOpen=document.getElementById('settings-panel').classList.contains('open');const countdownsOpen=document.getElementById('countdowns-panel').classList.contains('open');if(!settingsOpen&&!countdownsOpen)document.getElementById('app').classList.remove('controls-visible')},3000);
+  controlsTimer=setTimeout(()=>{
+    const settingsOpen=document.getElementById('settings-panel').classList.contains('open');
+    const countdownsOpen=document.getElementById('countdowns-panel').classList.contains('open');
+    if(!settingsOpen&&!countdownsOpen){
+      document.getElementById('app').classList.remove('controls-visible');
+      syncHomeCountdownsRestoreButton();
+    }
+  },3000);
 }
 function isHomeCountdownsHidden(){
   const homeSection=document.getElementById('home-countdowns');
