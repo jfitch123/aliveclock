@@ -324,29 +324,39 @@ body.us-july4 .srow {
 .home-countdown-title{ font-size: 14px; color:rgba(255,255,255,0.95); text-align:center; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 
 .home-countdowns-restore {
-  margin-top: 12px;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: min(100%, 220px);
-  padding: 10px 16px;
+  position: absolute;
+  top: clamp(10px, 2vh, 20px);
+  right: calc(clamp(10px, 2vw, 20px) + 56px);
+  min-width: 140px;
+  height: clamp(40px, 5vw, 48px);
+  padding: 0 14px;
   border-radius: 999px;
   background: var(--control-bg);
   border: 1px solid var(--control-border);
   color: #fff;
   cursor: pointer;
   backdrop-filter: blur(12px);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s, background 0.25s ease;
+  z-index: 20;
 }
 
 .home-countdowns-restore:hover {
   background: var(--control-hover);
 }
 
-.home-countdowns-restore.visible {
-  display: inline-flex;
+#app.controls-visible .home-countdowns-restore.show-home-countdowns-restore {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 /* hidden state */

@@ -271,10 +271,9 @@ function isHomeCountdownsHidden(){
 }
 function syncHomeCountdownsRestoreButton(){
   const btn=document.getElementById('home-countdowns-restore-btn');
-  const app=document.getElementById('app');
   if(!btn) return;
-  const shouldShow = isHomeCountdownsHidden() && !!(app && app.classList.contains('controls-visible'));
-  btn.style.display = shouldShow ? 'inline-flex' : 'none';
+  const shouldShow = isHomeCountdownsHidden();
+  btn.classList.toggle('show-home-countdowns-restore', shouldShow);
 }
 function restoreHomeCountdowns(){
   const homeSection=document.getElementById('home-countdowns');
