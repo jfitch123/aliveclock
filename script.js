@@ -274,7 +274,7 @@ function syncHomeCountdownsRestoreButton(){
   const app=document.getElementById('app');
   if(!btn) return;
   const shouldShow = isHomeCountdownsHidden() && !!(app && app.classList.contains('controls-visible'));
-  btn.classList.toggle('visible', shouldShow);
+  btn.style.display = shouldShow ? 'inline-flex' : 'none';
 }
 function restoreHomeCountdowns(){
   const homeSection=document.getElementById('home-countdowns');
