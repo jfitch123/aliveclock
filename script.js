@@ -803,7 +803,7 @@ function fallbackSky(){
   const h=new Date().getHours();
   let sky='#6ab8e0',tx='#0d2040';
   if(h<5||h>=21){sky='#0b0f2e';tx='#dde8ff'}
-  else if(h<7){sky='#e07830';tx='#fff3e0'}
+  else if(h<7){sky='#009dff';tx='#fff3e0'}
   else if(h>=19){sky='#b03525';tx='#ffe0cc'}
   document.getElementById('sky-layer').style.background=sky;
   setTextColor(tx);
